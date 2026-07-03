@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<title>現調くん</title>
+<link rel="apple-touch-icon" href="icon.png">
+
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="現調くん">
+
+<script>
+// PWAの仕組みをブラウザに登録
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(function() {
+    console.log('Service Worker Registered');
+  });
+}
+</script>
+<script src="html5-qrcode.min.js"></script>
+<script src="main.js" defer></script>
+
+<style>
+/* 全体の共通リセット */
+*{box-sizing:border-box;}
+body{margin:0;font-family:sans-serif;background:#eef2f6;overflow-x:hidden;}
+.header{background:#2c3e50;color:#fff;padding:12px;text-align:center;font-weight:bold;}
+.container{padding:10px;max-width:520px;margin:auto;}
+.btn-row{display:flex;gap:5px;margin:8px 0;align-items:stretch;}
+
+/* 1段目用の部署テキストスタイル */
+#deptLabel{
+flex:1.2;background:#fff;padding:0 4px;border-radius:6px;
+display:flex;align-items:center;justify-content:center;
+font-weight:bold;font-size:11px;border:1px solid #dcdde1;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+cursor:pointer;text-decoration:underline;color:#2c3e50;
+}
+
+button{
+flex:1;padding:12px 2px;border:none;border-radius:6px;
+color:#fff;font-weight:bold;font-size:11px;
+display:flex;align-items:center;justify-content:center;gap:2px;
+box-shadow:0 2px 4px rgba(0,0,0,0.1);
+}
+button:active{opacity:0.8;}
+
+.reset{background:#e74c3c;}
+.csv{background:#3498db;}
+.memo{background:#9b59b6;}
+.cam-start{background:#f39c12;flex:1.1;}
+.cam-stop{background:#7f8c8d;flex:0.9;}
+.reload{background:#7f8c8d;flex:1.1;}
+.search-open{background:#16a085;}
+
+/* 🎯 常時入力エリアのスタイル */
+.input-block {
+background:#fff; padding:10px; border-radius:6px; margin:8px 0;
+box-shadow:0 2px 4px rgba(0,0,0,0.05); border:1px solid #dcdde1;
+}
+/* 手入力用に横並びにするレイアウト */
+.input-row {
+display:flex; gap:6px; width:100%;
+}
+.barcode-input {
+flex:3.5; padding:12px; border:2px solid #34495e; border-radius:6px;
+font-size:16px; font-weight:bold; box-sizing:border-box; text-align:center;
+background:#f8f9fa;
+}
+.barcode-input:focus {
+background:#fff; border-color:#3498db; outline:none;
+box-shadow:0 0 8px rgba(52,152,219,0.3);
+}
+/* 手入力時の登録用ボタン */
+.submit-btn {
+flex:1; background:#34495e; color:#fff; font-size:13px; border-radius:6px; border:none; font-weight:bold; cursor:pointer;
+}
+
+#reader{margin:10px 0;}
+.card{
+background:#fff;padding:10px;border-left:5px solid #3498db;
+border-radius:6px;margin-top:8px;box-shadow:0 2px 4px rgba(0,0,0,0.05);
+font-size:14px;
+}
+.memo-text{color:#e74c3c;font-weight:bold;}
+
+/* 🎯 マスタ検索・重複選択画面：共通モーダルスタイル */
+.search-modal {
+display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;
+background:rgba(0,0,0,0.5); z-index:9999; padding:8px; box-sizing:border-box;
+}
+.search-content {
+position:relative; margin:0 auto; width:100%; max-width:500px; height:95%;
+background:#fff; border-radius:8px; padding:12px; box-sizing:border-box;
+display:flex; flex-direction:column; box-shadow:0 4px 12px rgba(0,0,0,0.2);
+}
+.search-header { font-weight:bold; font-size:15px; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #eee; color:#2c3e50; }
+.selection-header { border-bottom:1px solid #eee; color:#2c3e50; font-weight:bold; font-size:15px; margin-bottom:8px; padding-bottom:4px; }
+
+/* キーワードボックス幅広 */
+.search-layout-box { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.search-row-1 { display:flex; gap:5px; width:100%; align-items:stretch; }
+
+/* ✕ボタンが重なるため右側にpaddingを多めに設定 */
+.search-input { flex:3.5; padding:10px; padding-right:32px; border:1px solid #ccc; border-radius:6px; font-size:14px; box-sizing:border-box; }
+.search-btn { flex:1.1; background:#16a085; color:#fff; font-size:12px; border-radius:6px; border:none; font-weight:bold; cursor:pointer; }
+
+/* 閉じるボタン */
+.search-close-btn { width:100%; padding:10px; background:#7f8c8d; color:#fff; font-size:12px; border-radius:6px; border:none; font-weight:bold; cursor:pointer; text-align:center; }
+
+.search-summary { font-size:12px; color:#7f8c8d; margin-bottom:6px; }
+.search-results { flex:1; overflow-y:auto; background:#f5f6fa; padding:6px; border-radius:6px; box-sizing:border-box; }
+
+/* カードデザイン */
+.search-item-card {
+background:#fff; padding:10px; border-left:5px solid #16a085;
+border-radius:6px; margin-bottom:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05);
+font-size:13px; cursor:pointer; box-sizing:border-box;
+}
+.search-item-card:active { background:#eef2f6; opacity:0.9; }
+
+/* 重複選択用カード */
+.selection-item-card {
+background:#fff; padding:10px; border-left:5px solid #2980b9;
+border-radius:6px; margin-bottom:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05);
+font-size:13px; cursor:pointer; box-sizing:border-box;
+}
+.selection-item-card:active { background:#eef2f6; opacity:0.9; }
+
+mark { background: #ffeb3b; padding: 0 2px; border-radius: 2px; color:#000; font-weight: bold; }
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  🏥 現調くん
+  <div id="masterUpdateDate" style="font-size: 10px; font-weight: normal; color: #b2bec3; margin-top: 3px;">マスタデータ: 確認中...</div>
+</div>
+
+<div class="container">
+
+<div class="btn-row">
+<div id="deptLabel" onclick="setDept()">🏢 部署：未設定</div>
+<button class="cam-start" onclick="startCamera()">📷 カメラ開始</button>
+<button class="cam-stop" onclick="stopCamera()">⛔ 停止</button>
+</div>
+
+<div class="btn-row" style="background: #fff; padding: 6px; border-radius: 6px; border: 1px solid #dcdde1;">
+  <div id="masterStatus" style="flex: 1.5; font-size: 11px; font-weight: bold; color: #7f8c8d; display: flex; align-items: center; padding-left: 4px;">📦 マスタ: 確認中...</div>
+  <button id="syncBtn" style="background: #27ae60; flex: 1;" onclick="downloadMasterToIndexedDB()">🔄 マスタ同期</button>
+  <button class="reload" style="flex: 0.8;" onclick="forceReloadApp()">アプリ更新</button>
+</div>
+
+<div id="reader"></div>
+
+<div class="input-block">
+  <div class="input-row">
+    <input type="tel" id="barcodeInput" class="barcode-input" placeholder="リーダー読取 or 手入力" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    <button class="submit-btn" onclick="executeManualInput()">登録</button>
+  </div>
+</div>
+
+<div class="btn-row">
+<button class="memo" onclick="addMemo()">📝 メモ</button>
+<button class="search-open" onclick="openSearchModal()">🔍 検索</button>
+<button class="reset" onclick="clearData()">🗑️ 削除</button>
+<button class="csv" onclick="exportCSV()">📥 出力</button>
+</div>
+
+<div id="resultList"></div>
+
+</div>
+
+<div id="searchModal" class="search-modal">
+<div class="search-content">
+<div class="search-header">🔍 台帳マスタ検索</div>
+
+<div class="search-layout-box">
+  <div class="search-row-1">
+    <div style="position: relative; flex: 3.5; display: flex; align-items: center;">
+      <input type="text" id="searchKeyword" class="search-input" style="width: 100%;" placeholder="メーカー、商品名、品番など">
+      <button id="clearSearchBtn" onclick="clearSearchInput()" style="position: absolute; right: 8px; background: none; border: none; font-size: 16px; color: #95a5a6; cursor: pointer; padding: 4px; box-shadow: none; width: auto; height: auto; display: none;">✕</button>
+    </div>
+    <button class="search-btn" onclick="executeMasterSearch()">検索</button>
+  </div>
+</div>
+
+<div id="searchSummary" class="search-summary">キーワードを入力して検索してください。</div>
+<div id="searchResults" class="search-results"></div>
+
+<div style="margin-top:8px;">
+  <button class="search-close-btn" onclick="closeSearchModal()">❌ 閉じる</button>
+</div>
+</div>
+</div>
+
+<div id="selectionModal" class="search-modal">
+<div class="search-content">
+<div class="selection-header">⚠️ JAN重複 - 製品選択</div>
+<div id="selectionSummary" class="search-summary">同じJANで複数の製品が見つかりました。タップして選択してください。</div>
+<div id="selectionResults" class="search-results"></div>
+<div style="margin-top:8px;">
+  <button class="search-close-btn" onclick="closeSelectionModal()">❌ キャンセル（戻る）</button>
+</div>
+</div>
+</div>
+
+</body>
+</html>
