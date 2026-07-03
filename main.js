@@ -1,4 +1,3 @@
-
 // ✅ Audio設定（高精度Web Audio APIを使用）
 let audioCtx = null;
 
