@@ -19,7 +19,24 @@ function initAudio() {
   }
 }
 
-// 警告音（既存のplayErrorをベースに3回ビープ）
+// 🎯 【追加】安全圏用の「ピ！」という短い単発ビープ音（現場調査アプリより完全移植）
+function playBeep() {
+  initAudio();
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const soundLength = 0.05; 
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  
+  o.frequency.value = 2300; 
+  g.gain.setValueAtTime(1.0, now); 
+  g.gain.exponentialRampToValueAtTime(0.001, now + soundLength);
+  
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(now); o.stop(now + soundLength);
+}
+
+// 警告用（3回ビープ）
 function playAlertSound() {
   return new Promise((resolve) => {
     initAudio();
@@ -31,7 +48,7 @@ function playAlertSound() {
     for (let i = 0; i < 3; i++) {
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
-      o.frequency.value = 1800; // 少し高めの警告音
+      o.frequency.value = 1800; // 警告音
       g.gain.setValueAtTime(1.0, now + (interval * i));
       g.gain.exponentialRampToValueAtTime(0.001, now + (interval * i) + soundLength);
       o.connect(g); g.connect(audioCtx.destination);
@@ -56,7 +73,7 @@ function keepFocus() {
 
 // 起動時・クリック時のフォーカス制御
 window.addEventListener("DOMContentLoaded", () => {
-  // 🎯 切迫基準日のデフォルトを「6カ月先」に設定
+  // 切迫基準日のデフォルトを「6カ月先」に設定
   const baseDate = new Date();
   baseDate.setMonth(baseDate.getMonth() + 6);
   
@@ -68,7 +85,6 @@ window.addEventListener("DOMContentLoaded", () => {
   const barcodeInput = document.getElementById("barcodeInput");
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
-      // リーダー読み取り時の自動エンター入力をフック
       if (e.key === "Enter") {
         await executeManualInput();
       }
@@ -95,16 +111,14 @@ async function executeManualInput() {
   }
 }
 
-// 🎯 GS1-128 解析・チェックメインロジック
+// GS1-128 解析・チェックメインロジック
 async function handleGS1Check(raw) {
   // 数字以外を除去
   const digits = raw.replace(/\D/g, "");
   const resultList = document.getElementById("resultList");
   
-  // 毎回結果エリアをクリア（その瞬間のチェックのみのため）
   resultList.innerHTML = "";
 
-  // ⑩ 先頭2桁が「01」以外はエラーメッセージを表示
   if (!digits.startsWith("01")) {
     const card = document.createElement("div");
     card.className = "card card-danger";
@@ -115,11 +129,9 @@ async function handleGS1Check(raw) {
     return;
   }
 
-  // ⑪ GS1-128構造の解析
   const aiExpiry = digits.substring(16, 18);
   
   if (aiExpiry !== "17") {
-    // 有効期限の識別子「17」ではない場合
     const card = document.createElement("div");
     card.className = "card card-info";
     card.innerHTML = `
@@ -138,10 +150,9 @@ async function handleGS1Check(raw) {
   const dd = digits.substring(22, 24);
 
   let year = 2000 + parseInt(yy, 10);
-  let month = parseInt(mm, 10) - 1; // JSの月は0〜11
+  let month = parseInt(mm, 10) - 1; 
   let day = parseInt(dd, 10);
 
-  // ddが「00」の場合はその月の末日
   if (dd === "00") {
     const lastDay = new Date(year, month + 1, 0);
     day = lastDay.getDate();
@@ -149,7 +160,6 @@ async function handleGS1Check(raw) {
 
   const expiryDate = new Date(year, month, day);
   
-  // 基準日の取得
   const baseDateVal = document.getElementById("alertBaseDate").value;
   if (!baseDateVal) {
     alert("切迫基準日を入力してください。");
@@ -162,12 +172,11 @@ async function handleGS1Check(raw) {
   today.setHours(0,0,0,0);
   expiryDate.setHours(0,0,0,0);
 
-  // 日付のフォーマット用文字列
   const formattedExpiry = `${year}/${String(month + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
 
-  // 🎯 修正した判定ロジック
+  // 判定と音の鳴らし分け
   
-  // A. 本日より前 ＝ 【期限切れ！】（赤色）
+  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ 警告音）
   if (expiryDate < today) {
     await playAlertSound();
     const card = document.createElement("div");
@@ -179,7 +188,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色）
+  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ 警告音）
   else if (expiryDate >= today && expiryDate <= baseDate) {
     await playAlertSound();
     const card = document.createElement("div");
@@ -191,8 +200,9 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C. 基準日より先 ＝ 【OK】（緑色、音なし）
+  // C. 基準日より先 ＝ 【OK】（緑色 ＋ 🎯単発ピ！音）
   else {
+    playBeep(); // 現場調査アプリの「ピ！」音を再生
     const card = document.createElement("div");
     card.className = "card card-ok";
     card.innerHTML = `
