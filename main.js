@@ -19,7 +19,7 @@ function initAudio() {
   }
 }
 
-// 🎯 【追加】安全圏用の「ピ！」という短い単発ビープ音（現場調査アプリより完全移植）
+// 🎯 安全圏用・期限なし用の「ピ！」という短い単発ビープ音
 function playBeep() {
   initAudio();
   if (!audioCtx) return;
@@ -86,6 +86,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
+        initAudio(); // 🎯 スキャン（エンター）の瞬間に音声を強制アクティブ化
         await executeManualInput();
       }
     });
@@ -96,6 +97,7 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
+  initAudio(); // 🎯 画面タップ時にも音声コンテキストを有効化
   setTimeout(keepFocus, 50);
 });
 
@@ -113,12 +115,12 @@ async function executeManualInput() {
 
 // GS1-128 解析・チェックメインロジック
 async function handleGS1Check(raw) {
-  // 数字以外を除去
   const digits = raw.replace(/\D/g, "");
   const resultList = document.getElementById("resultList");
   
   resultList.innerHTML = "";
 
+  // ⑩ 先頭2桁が「01」以外はエラー
   if (!digits.startsWith("01")) {
     const card = document.createElement("div");
     card.className = "card card-danger";
@@ -131,13 +133,14 @@ async function handleGS1Check(raw) {
 
   const aiExpiry = digits.substring(16, 18);
   
+  // 🎯 【変更】有効期限の識別子「17」ではない（＝期限のない商品）場合も緑色カードにして「ピ！」と鳴らす
   if (aiExpiry !== "17") {
+    playBeep(); // 安全圏と同じ「ピ！」音
     const card = document.createElement("div");
-    card.className = "card card-info";
+    card.className = "card card-ok"; // 安全圏と同じ緑色
     card.innerHTML = `
-      <b>【チェック結果】</b><br>
-      読み取りコード: ${digits}<br>
-      状態: 有効期限のない商品です (AI: ${aiExpiry})
+      ✅ OK (期限なし商品)<br>
+      <span style="font-size:14px; font-weight:normal;">有効期限の指定がない製品です。</span>
     `;
     resultList.prepend(card);
     keepFocus();
@@ -200,9 +203,9 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C. 基準日より先 ＝ 【OK】（緑色 ＋ 🎯単発ピ！音）
+  // C. 基準日より先 ＝ 【OK】（緑色 ＋ 単発ピ！音）
   else {
-    playBeep(); // 現場調査アプリの「ピ！」音を再生
+    playBeep(); 
     const card = document.createElement("div");
     card.className = "card card-ok";
     card.innerHTML = `
