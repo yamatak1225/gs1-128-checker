@@ -79,6 +79,9 @@ background: #ffeb3b; color: #000; border: 2px solid #f39c12;
 .card-danger {
 background: #e74c3c; color: #fff; border: 2px solid #c0392b;
 }
+.card-ok {
+background: #2ecc71; color: #fff; border: 2px solid #27ae60;
+}
 .card-info {
 background: #fff; color: #2c3e50; border-left: 5px solid #3498db; text-align: left; font-weight: normal; font-size: 14px;
 }
@@ -110,7 +113,8 @@ background: #fff; color: #2c3e50; border-left: 5px solid #3498db; text-align: le
 <!-- バーコード読取エリア -->
 <div class="input-block">
   <div class="input-row">
-    <input type="text" id="barcodeInput" class="barcode-input" placeholder="リーダー読取 or 手入力" autocomplete="off">
+    <!-- inputmode="url" で英語キーボードを強制（ひらがな化防止） -->
+    <input type="text" id="barcodeInput" class="barcode-input" placeholder="リーダー読取" inputmode="url" autocomplete="off">
     <button class="submit-btn" onclick="executeManualInput()">チェック</button>
   </div>
 </div>
