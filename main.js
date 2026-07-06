@@ -35,7 +35,6 @@ function keepFocus() {
 
 // 起動時・クリック時のフォーカス制御
 window.addEventListener("DOMContentLoaded", () => {
-  // 切迫基準日のデフォルトを「6カ月先」に設定
   const baseDate = new Date();
   baseDate.setMonth(baseDate.getMonth() + 6);
   
@@ -52,7 +51,7 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-  updateHistoryCountDisplay(); // 起動時に現在の蓄積件数を表示
+  updateHistoryCountDisplay(); 
   setTimeout(keepFocus, 500);
 });
 
@@ -74,21 +73,17 @@ async function executeManualInput() {
   }
 }
 
-// 🎯 【新機能】件数表示の更新
 function updateHistoryCountDisplay() {
   const data = JSON.parse(localStorage.getItem("gs1_scan_history") || "[]");
   document.getElementById("historyCount").innerText = `${data.length} 件`;
 }
 
-// 🎯 【新機能】データの蓄積（localStorageへの保存）
 function saveScanRecord(rawCode, parsedJan, parsedExpiry, parsedLot) {
   const history = JSON.parse(localStorage.getItem("gs1_scan_history") || "[]");
   
-  // 現在の日時を取得 (yyyy/mm/dd hh:mm:ss)
   const now = new Date();
   const timestamp = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
   
-  // 新しいレコードを作成
   const newRecord = {
     raw: rawCode,
     time: timestamp,
@@ -102,7 +97,6 @@ function saveScanRecord(rawCode, parsedJan, parsedExpiry, parsedLot) {
   updateHistoryCountDisplay();
 }
 
-// 🎯 【新機能】CSVデータの出力・共有（現場調査アプリ移植仕様）
 function shareDataAsCSV() {
   const history = JSON.parse(localStorage.getItem("gs1_scan_history") || "[]");
   if (history.length === 0) {
@@ -110,11 +104,9 @@ function shareDataAsCSV() {
     return;
   }
   
-  // CSVのヘッダー定義（エクセル化けを防ぐためShift_JIS文字コードではなく標準のUTF-8・BOM付で書き出します）
   let csvContent = "\uFEFF読込日時,読み込んだコード,JAN,有効期限,ロット\r\n";
   
   history.forEach(item => {
-    // CSV項目内でカンマや改行の誤動作を防ぐ安全処理
     const row = [
       `"${item.time}"`,
       `"${item.raw}"`,
@@ -125,11 +117,9 @@ function shareDataAsCSV() {
     csvContent += row.join(",") + "\r\n";
   });
   
-  // Web Share API 用にファイルを生成
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const file = new File([blob], "gs1_scan_data.csv", { type: "text/csv" });
   
-  // スマホの標準共有（メール、LINE、ファイル保存など）を起動
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     navigator.share({
       files: [file],
@@ -141,7 +131,6 @@ function shareDataAsCSV() {
   }
 }
 
-// 🎯 【新機能】蓄積データの全消去
 function clearStoredData() {
   if (!confirm("蓄積されたすべての履歴データを削除しますか？\n（一度消すと元に戻せません）")) return;
   localStorage.removeItem("gs1_scan_history");
@@ -157,7 +146,7 @@ async function handleGS1Check(raw) {
   
   resultList.innerHTML = "";
 
-  // A. 先頭2桁が「01」以外はエラー
+  // 先頭2桁が「01」以外はエラー
   if (!digits.startsWith("01")) {
     const card = document.createElement("div");
     card.className = "card card-danger";
@@ -165,28 +154,21 @@ async function handleGS1Check(raw) {
     resultList.prepend(card);
     playAlertSound(); 
     
-    // GS1ではないが、①読取コードと②読込日時だけを蓄積に回す（③は空欄）
     saveScanRecord(raw, "", "", "");
     keepFocus();
     return;
   }
 
-  // ⑪ GS1-128構造の解析変数定義
-  let janCode = digits.substring(2, 16); // AI(01)に続く14桁のGTIN/JAN
+  // 構造解析用変数の定義
+  let janCode = digits.substring(2, 16); // AI(01)に続く14桁
   let expiryStr = "";
   let lotCode = "";
 
   const aiExpiry = digits.substring(16, 18);
   
-  // B. 有効期限の識別子「17」ではない（＝期限のない商品）場合
+  // 有効期限の識別子「17」ではない（＝期限のない商品）場合
   if (aiExpiry !== "17") {
-    // 期限はないが、ロット情報(AI:10)がさらに後ろに存在するか簡易抽出を試みる
-    if (digits.length > 16) {
-      lotCode = digits.substring(16); // 残りを暫定ロットとして扱う
-    }
-    
-    // データを蓄積
-    saveScanRecord(raw, janCode, "期限なし", lotCode);
+    saveScanRecord(raw, janCode, "期限なし", "");
     
     playBeep(); 
     const card = document.createElement("div");
@@ -217,18 +199,18 @@ async function handleGS1Check(raw) {
   const expiryDate = new Date(year, month, day);
   expiryStr = `${year}/${String(month + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
 
-  // 有効期限の後ろ（24桁目以降）にデータがあれば、それをロット識別子(10)とロット番号として抽出
+  // 🎯 【ロット情報(AI:10)の抽出ロジック修正】
+  // 有効期限6桁の直後（24桁目以降）が存在するか確認
   if (digits.length > 24) {
-    // 先頭が10（ロット識別子）から始まっている場合はそれを除いた部分をロット番号にする
-    const remaining = digits.substring(24);
+    const remaining = digits.substring(24); // 24桁目以降の文字列を取得
+    
+    // 始まりの2桁が識別番号「10」である場合のみ抽出
     if (remaining.startsWith("10")) {
-      lotCode = remaining.substring(22); // AI(10)を取り除いた残りの文字列
-    } else {
-      lotCode = remaining;
+      lotCode = remaining.substring(2); // 識別番号「10」の次の番号からすべてを取得
     }
   }
 
-  // 🎯 【重要】判定前に、切り分けたデータをスマホに確定蓄積
+  // 切り分けたデータをスマホに蓄積
   saveScanRecord(raw, janCode, expiryStr, lotCode);
 
   const baseDateVal = document.getElementById("alertBaseDate").value;
@@ -244,8 +226,6 @@ async function handleGS1Check(raw) {
   expiryDate.setHours(0,0,0,0);
 
   // 判定と音の鳴らし分け
-  
-  // C-1. 本日より前 ＝ 【期限切れ！】
   if (expiryDate < today) {
     playAlertSound();
     const card = document.createElement("div");
@@ -257,7 +237,6 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C-2. 本日〜基準日の間 ＝ 【期限切迫！】
   else if (expiryDate >= today && expiryDate <= baseDate) {
     playAlertSound();
     const card = document.createElement("div");
@@ -269,7 +248,6 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C-3. 基準日より先 ＝ 【OK】
   else {
     playBeep(); 
     const card = document.createElement("div");
