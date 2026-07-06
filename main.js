@@ -4,7 +4,6 @@ const soundAlert = new Audio('alert.wav');
 
 // スマホブラウザの音声ロックを解除するための関数
 function initAudio() {
-  // 空の音を再生させることで、ブラウザに「音を鳴らして良い状態」を認識させます
   soundOk.play().then(() => {
     soundOk.pause();
     soundOk.currentTime = 0;
@@ -16,15 +15,19 @@ function initAudio() {
   }).catch(e => console.log("Audio unlock waiting..."));
 }
 
-// 🎯 【変更】wavファイルを再生する関数
+// 🎯 【対策】入力クリアや画面書き換えの影響を受けないよう、0.1秒だけ遅らせて綺麗に再生する
 function playBeep() {
-  soundOk.currentTime = 0; // 再生位置を先頭に戻す
-  soundOk.play().catch(e => console.error("Audio play error (OK):", e));
+  setTimeout(() => {
+    soundOk.currentTime = 0;
+    soundOk.play().catch(e => console.error("Audio play error (OK):", e));
+  }, 100);
 }
 
 function playAlertSound() {
-  soundAlert.currentTime = 0; // 再生位置を先頭に戻す
-  soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
+  setTimeout(() => {
+    soundAlert.currentTime = 0;
+    soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
+  }, 100);
 }
 
 function forceReloadApp() {
@@ -55,7 +58,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
-        initAudio(); // 🎯 スキャン（エンター）の瞬間に音声を解放
+        initAudio(); // スキャン（エンター）の瞬間に音声を解放
         await executeManualInput();
       }
     });
@@ -66,7 +69,7 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
-  initAudio(); // 🎯 画面タップ時にも音声を解放
+  initAudio(); // 画面タップ時にも音声を解放
   setTimeout(keepFocus, 50);
 });
 
@@ -75,7 +78,11 @@ async function executeManualInput() {
   if (!barcodeInput) return;
   
   const val = barcodeInput.value.trim();
-  barcodeInput.value = ""; // 次の読み取りのために即座にクリア
+  
+  // 🎯 【対策】クリアのタイミングをわずかに遅らせて、読み取り時のブラウザ負荷を逃がす
+  setTimeout(() => {
+    barcodeInput.value = "";
+  }, 50);
   
   if (val !== "") {
     await handleGS1Check(val);
@@ -95,7 +102,7 @@ async function handleGS1Check(raw) {
     card.className = "card card-danger";
     card.innerHTML = `❌ GS1-128コードではありません！<br><span style="font-size:12px; font-weight:normal;">(入力値: ${raw})</span>`;
     resultList.prepend(card);
-    playAlertSound(); // ⚠️ 警告音を再生
+    playAlertSound(); 
     keepFocus();
     return;
   }
@@ -104,7 +111,7 @@ async function handleGS1Check(raw) {
   
   // 有効期限の識別子「17」ではない（＝期限のない商品）場合も緑色カード
   if (aiExpiry !== "17") {
-    playBeep(); // ✅ OK音を再生
+    playBeep(); 
     const card = document.createElement("div");
     card.className = "card card-ok"; 
     card.innerHTML = `
@@ -148,7 +155,7 @@ async function handleGS1Check(raw) {
 
   // 判定と音の鳴らし分け
   
-  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ ⚠️警告音）
+  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ 警告音）
   if (expiryDate < today) {
     playAlertSound();
     const card = document.createElement("div");
@@ -160,7 +167,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ ⚠️警告音）
+  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ 警告音）
   else if (expiryDate >= today && expiryDate <= baseDate) {
     playAlertSound();
     const card = document.createElement("div");
@@ -172,7 +179,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C. 基準日より先 ＝ 【OK】（緑色 ＋ ✅OK音）
+  // C. 基準日より先 ＝ 【OK】（緑色 ＋ OK音）
   else {
     playBeep(); 
     const card = document.createElement("div");
