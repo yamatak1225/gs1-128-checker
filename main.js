@@ -1,61 +1,30 @@
-// ✅ Audio設定（高精度Web Audio APIを使用）
-let audioCtx = null;
+// ✅ 音声ファイルの定義
+const soundOk = new Audio('ok.wav');
+const soundAlert = new Audio('alert.wav');
 
+// スマホブラウザの音声ロックを解除するための関数
 function initAudio() {
-  try {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-    // ダミーの音を鳴らして有効化
-    const osc = audioCtx.createOscillator();
-    osc.connect(audioCtx.destination);
-    osc.start(0);
-    osc.stop(0.01);
-  } catch (e) {
-    console.error("Audio init error:", e);
-  }
+  // 空の音を再生させることで、ブラウザに「音を鳴らして良い状態」を認識させます
+  soundOk.play().then(() => {
+    soundOk.pause();
+    soundOk.currentTime = 0;
+  }).catch(e => console.log("Audio unlock waiting..."));
+
+  soundAlert.play().then(() => {
+    soundAlert.pause();
+    soundAlert.currentTime = 0;
+  }).catch(e => console.log("Audio unlock waiting..."));
 }
 
-// 🎯 安全圏用・期限なし用の「ピ！」という短い単発ビープ音
+// 🎯 【変更】wavファイルを再生する関数
 function playBeep() {
-  initAudio();
-  if (!audioCtx) return;
-  const now = audioCtx.currentTime;
-  const soundLength = 0.05; 
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  
-  o.frequency.value = 2300; 
-  g.gain.setValueAtTime(1.0, now); 
-  g.gain.exponentialRampToValueAtTime(0.001, now + soundLength);
-  
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(now); o.stop(now + soundLength);
+  soundOk.currentTime = 0; // 再生位置を先頭に戻す
+  soundOk.play().catch(e => console.error("Audio play error (OK):", e));
 }
 
-// 警告用（3回ビープ）
 function playAlertSound() {
-  return new Promise((resolve) => {
-    initAudio();
-    if (!audioCtx) { resolve(); return; }
-    const now = audioCtx.currentTime;
-    const soundLength = 0.08;
-    const interval = 0.15;
-    
-    for (let i = 0; i < 3; i++) {
-      const o = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      o.frequency.value = 1800; // 警告音
-      g.gain.setValueAtTime(1.0, now + (interval * i));
-      g.gain.exponentialRampToValueAtTime(0.001, now + (interval * i) + soundLength);
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start(now + (interval * i)); o.stop(now + (interval * i) + soundLength);
-    }
-    setTimeout(() => { resolve(); }, 500);
-  });
+  soundAlert.currentTime = 0; // 再生位置を先頭に戻す
+  soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
 }
 
 function forceReloadApp() {
@@ -86,7 +55,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
-        initAudio(); // 🎯 スキャン（エンター）の瞬間に音声を強制アクティブ化
+        initAudio(); // 🎯 スキャン（エンター）の瞬間に音声を解放
         await executeManualInput();
       }
     });
@@ -97,7 +66,7 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
-  initAudio(); // 🎯 画面タップ時にも音声コンテキストを有効化
+  initAudio(); // 🎯 画面タップ時にも音声を解放
   setTimeout(keepFocus, 50);
 });
 
@@ -120,24 +89,24 @@ async function handleGS1Check(raw) {
   
   resultList.innerHTML = "";
 
-  // ⑩ 先頭2桁が「01」以外はエラー
+  // 先頭2桁が「01」以外はエラー
   if (!digits.startsWith("01")) {
     const card = document.createElement("div");
     card.className = "card card-danger";
     card.innerHTML = `❌ GS1-128コードではありません！<br><span style="font-size:12px; font-weight:normal;">(入力値: ${raw})</span>`;
     resultList.prepend(card);
-    await playAlertSound();
+    playAlertSound(); // ⚠️ 警告音を再生
     keepFocus();
     return;
   }
 
   const aiExpiry = digits.substring(16, 18);
   
-  // 🎯 【変更】有効期限の識別子「17」ではない（＝期限のない商品）場合も緑色カードにして「ピ！」と鳴らす
+  // 有効期限の識別子「17」ではない（＝期限のない商品）場合も緑色カード
   if (aiExpiry !== "17") {
-    playBeep(); // 安全圏と同じ「ピ！」音
+    playBeep(); // ✅ OK音を再生
     const card = document.createElement("div");
-    card.className = "card card-ok"; // 安全圏と同じ緑色
+    card.className = "card card-ok"; 
     card.innerHTML = `
       ✅ OK (期限なし商品)<br>
       <span style="font-size:14px; font-weight:normal;">有効期限の指定がない製品です。</span>
@@ -179,9 +148,9 @@ async function handleGS1Check(raw) {
 
   // 判定と音の鳴らし分け
   
-  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ 警告音）
+  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ ⚠️警告音）
   if (expiryDate < today) {
-    await playAlertSound();
+    playAlertSound();
     const card = document.createElement("div");
     card.className = "card card-danger";
     card.innerHTML = `
@@ -191,9 +160,9 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ 警告音）
+  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ ⚠️警告音）
   else if (expiryDate >= today && expiryDate <= baseDate) {
-    await playAlertSound();
+    playAlertSound();
     const card = document.createElement("div");
     card.className = "card card-warn";
     card.innerHTML = `
@@ -203,7 +172,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C. 基準日より先 ＝ 【OK】（緑色 ＋ 単発ピ！音）
+  // C. 基準日より先 ＝ 【OK】（緑色 ＋ ✅OK音）
   else {
     playBeep(); 
     const card = document.createElement("div");
