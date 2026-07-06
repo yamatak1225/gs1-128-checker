@@ -2,26 +2,21 @@
 const soundOk = new Audio('ok.wav');
 const soundAlert = new Audio('alert.wav');
 
-// 🎯 【修正】ノイズの原因になっていたplay()によるダミー再生を完全に削除しました
+// 音声ファイルの事前ロード
 function initAudio() {
-  // 音声ファイルの読み込み（ロード）だけを明示的に行い、再生可能な状態にします
   soundOk.load();
   soundAlert.load();
 }
 
-// WAVファイルを綺麗に再生する関数（0.1秒のディレイでブラウザ負荷を回避）
+// 🎯 【修正】遅延（setTimeout）をすべて撤廃し、即座に再生する最速仕様に戻しました
 function playBeep() {
-  setTimeout(() => {
-    soundOk.currentTime = 0; // 再生位置を先頭に戻す
-    soundOk.play().catch(e => console.error("Audio play error (OK):", e));
-  }, 100);
+  soundOk.currentTime = 0; // 再生位置を先頭に戻す
+  soundOk.play().catch(e => console.error("Audio play error (OK):", e));
 }
 
 function playAlertSound() {
-  setTimeout(() => {
-    soundAlert.currentTime = 0; // 再生位置を先頭に戻す
-    soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
-  }, 100);
+  soundAlert.currentTime = 0; // 再生位置を先頭に戻す
+  soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
 }
 
 function forceReloadApp() {
@@ -52,7 +47,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
-        initAudio(); // スキャン（エンター）の瞬間に音声の準備を走らせる
+        initAudio(); // スキャン（エンター）の瞬間に音声の準備
         await executeManualInput();
       }
     });
@@ -63,7 +58,7 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
-  initAudio(); // 画面タップ時にも音声の準備を走らせる
+  initAudio(); // 画面タップ時にも音声の準備
   setTimeout(keepFocus, 50);
 });
 
@@ -73,10 +68,8 @@ async function executeManualInput() {
   
   const val = barcodeInput.value.trim();
   
-  // 入力クリアのタイミングをわずかに遅らせて、読み取り時のブラウザ負荷を逃がす
-  setTimeout(() => {
-    barcodeInput.value = "";
-  }, 50);
+  // 🎯 入力欄のクリアを即座に行い、判定・音声処理へ進みます
+  barcodeInput.value = "";
   
   if (val !== "") {
     await handleGS1Check(val);
