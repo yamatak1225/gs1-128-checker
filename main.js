@@ -1,21 +1,20 @@
-// ✅ 音声ファイルの定義
+// ✅ 音声ファイルの定義と初期ロード
+// preload="auto" を指定し、あらかじめデータをメモリに最大まで読み込ませます
 const soundOk = new Audio('ok.wav');
+soundOk.preload = "auto";
+
 const soundAlert = new Audio('alert.wav');
+soundAlert.preload = "auto";
 
-// 音声ファイルの事前ロード
-function initAudio() {
-  soundOk.load();
-  soundAlert.load();
-}
-
-// 🎯 【修正】遅延（setTimeout）をすべて撤廃し、即座に再生する最速仕様に戻しました
+// 🎯 【修正】スキャン時の再ロード（load()）を完全に撤廃しました。
+// これにより、通信待ちや読み込み待ちが発生せず、完全に0秒で即時再生されます。
 function playBeep() {
-  soundOk.currentTime = 0; // 再生位置を先頭に戻す
+  soundOk.currentTime = 0; 
   soundOk.play().catch(e => console.error("Audio play error (OK):", e));
 }
 
 function playAlertSound() {
-  soundAlert.currentTime = 0; // 再生位置を先頭に戻す
+  soundAlert.currentTime = 0; 
   soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
 }
 
@@ -47,7 +46,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
-        initAudio(); // スキャン（エンター）の瞬間に音声の準備
+        // 🎯 余計な処理を挟まず、即座にメインロジックを実行します
         await executeManualInput();
       }
     });
@@ -58,7 +57,6 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
-  initAudio(); // 画面タップ時にも音声の準備
   setTimeout(keepFocus, 50);
 });
 
@@ -68,7 +66,7 @@ async function executeManualInput() {
   
   const val = barcodeInput.value.trim();
   
-  // 🎯 入力欄のクリアを即座に行い、判定・音声処理へ進みます
+  // 入力欄のクリア
   barcodeInput.value = "";
   
   if (val !== "") {
