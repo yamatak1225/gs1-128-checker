@@ -13,7 +13,6 @@
 <meta name="apple-mobile-web-app-title" content="GS1チェッカー">
 
 <script>
-// PWAの仕組みをブラウザに登録
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then(function() {
     console.log('Service Worker Registered');
@@ -23,7 +22,6 @@ if ('serviceWorker' in navigator) {
 <script src="main.js" defer></script>
 
 <style>
-/* 全体の共通リセット */
 *{box-sizing:border-box;}
 body{margin:0;font-family:sans-serif;background:#eef2f6;overflow-x:hidden;}
 .header{background:#2c3e50;color:#fff;padding:12px;text-align:center;font-weight:bold;}
@@ -40,7 +38,7 @@ button:active{opacity:0.8;}
 
 .reload{background:#7f8c8d;}
 
-/* 🎯 常時入力エリアのスタイル */
+/* 常時入力エリア */
 .input-block {
 background:#fff; padding:10px; border-radius:6px; margin:8px 0;
 box-shadow:0 2px 4px rgba(0,0,0,0.05); border:1px solid #dcdde1;
@@ -63,28 +61,33 @@ background:#f8f9fa;
 background:#fff; border-color:#3498db; outline:none;
 box-shadow:0 0 8px rgba(52,152,219,0.3);
 }
-/* 手入力時の登録用ボタン */
 .submit-btn {
 flex:1; padding:12px 2px; background:#34495e; color:#fff; font-size:13px; border-radius:6px; border:none; font-weight:bold; cursor:pointer;
 }
 
-/* アラートカードスタイル */
+/* アラートカード */
 .card {
 padding:15px; border-radius:6px; margin-top:12px; box-shadow:0 2px 8px rgba(0,0,0,0.15);
 font-size:16px; font-weight: bold; text-align: center; animation: pulse 0.3s ease-in-out;
 }
-.card-warn {
-background: #ffeb3b; color: #000; border: 2px solid #f39c12;
+.card-warn { background: #ffeb3b; color: #000; border: 2px solid #f39c12; }
+.card-danger { background: #e74c3c; color: #fff; border: 2px solid #c0392b; }
+.card-ok { background: #2ecc71; color: #fff; border: 2px solid #27ae60; }
+
+/* 🎯 データ蓄積・出力用のスタイル */
+.history-block {
+background:#fff; padding:12px; border-radius:6px; margin-top:15px;
+box-shadow:0 2px 4px rgba(0,0,0,0.05); border:1px solid #dcdde1;
 }
-.card-danger {
-background: #e74c3c; color: #fff; border: 2px solid #c0392b;
+.history-header {
+font-size:14px; font-weight:bold; color:#2c3e50; margin-bottom:10px;
+display:flex; justify-content:space-between; align-items:center;
 }
-.card-ok {
-background: #2ecc71; color: #fff; border: 2px solid #27ae60;
+.count-badge {
+background:#3498db; color:#fff; padding:2px 8px; border-radius:12px; font-size:12px;
 }
-.card-info {
-background: #fff; color: #2c3e50; border-left: 5px solid #3498db; text-align: left; font-weight: normal; font-size: 14px;
-}
+.share-btn { background:#2ecc71; font-size:13px; padding:12px; }
+.clear-btn { background:#e74c3c; font-size:13px; padding:12px; }
 
 @keyframes pulse {
   0% { transform: scale(0.95); }
@@ -113,7 +116,6 @@ background: #fff; color: #2c3e50; border-left: 5px solid #3498db; text-align: le
 <!-- バーコード読取エリア -->
 <div class="input-block">
   <div class="input-row">
-    <!-- 🎯 ひらがな入力を防ぐため属性を徹底強化 -->
     <input type="tel" id="barcodeInput" class="barcode-input" placeholder="リーダー読取" 
            inputmode="tel" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off">
     <button class="submit-btn" onclick="executeManualInput()">チェック</button>
@@ -126,6 +128,18 @@ background: #fff; color: #2c3e50; border-left: 5px solid #3498db; text-align: le
 
 <!-- 結果表示エリア -->
 <div id="resultList"></div>
+
+<!-- 🎯 データ管理・出力エリア -->
+<div class="history-block">
+  <div class="history-header">
+    <span>📋 読取データ蓄積履歴</span>
+    <span id="historyCount" class="count-badge">0 件</span>
+  </div>
+  <div class="btn-row">
+    <button class="share-btn" onclick="shareDataAsCSV()">📤 CSVデータを共有・送信</button>
+    <button class="clear-btn" onclick="clearStoredData()">🗑️ 履歴クリア</button>
+  </div>
+</div>
 
 </div>
 
