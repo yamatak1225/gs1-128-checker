@@ -2,30 +2,24 @@
 const soundOk = new Audio('ok.wav');
 const soundAlert = new Audio('alert.wav');
 
-// スマホブラウザの音声ロックを解除するための関数
+// 🎯 【修正】ノイズの原因になっていたplay()によるダミー再生を完全に削除しました
 function initAudio() {
-  soundOk.play().then(() => {
-    soundOk.pause();
-    soundOk.currentTime = 0;
-  }).catch(e => console.log("Audio unlock waiting..."));
-
-  soundAlert.play().then(() => {
-    soundAlert.pause();
-    soundAlert.currentTime = 0;
-  }).catch(e => console.log("Audio unlock waiting..."));
+  // 音声ファイルの読み込み（ロード）だけを明示的に行い、再生可能な状態にします
+  soundOk.load();
+  soundAlert.load();
 }
 
-// 🎯 【対策】入力クリアや画面書き換えの影響を受けないよう、0.1秒だけ遅らせて綺麗に再生する
+// WAVファイルを綺麗に再生する関数（0.1秒のディレイでブラウザ負荷を回避）
 function playBeep() {
   setTimeout(() => {
-    soundOk.currentTime = 0;
+    soundOk.currentTime = 0; // 再生位置を先頭に戻す
     soundOk.play().catch(e => console.error("Audio play error (OK):", e));
   }, 100);
 }
 
 function playAlertSound() {
   setTimeout(() => {
-    soundAlert.currentTime = 0;
+    soundAlert.currentTime = 0; // 再生位置を先頭に戻す
     soundAlert.play().catch(e => console.error("Audio play error (Alert):", e));
   }, 100);
 }
@@ -58,7 +52,7 @@ window.addEventListener("DOMContentLoaded", () => {
   if (barcodeInput) {
     barcodeInput.addEventListener("keydown", async (e) => {
       if (e.key === "Enter") {
-        initAudio(); // スキャン（エンター）の瞬間に音声を解放
+        initAudio(); // スキャン（エンター）の瞬間に音声の準備を走らせる
         await executeManualInput();
       }
     });
@@ -69,7 +63,7 @@ window.addEventListener("DOMContentLoaded", () => {
 document.body.addEventListener("click", (e) => {
   const t = e.target.tagName;
   if (t === "BUTTON" || t === "INPUT") return;
-  initAudio(); // 画面タップ時にも音声を解放
+  initAudio(); // 画面タップ時にも音声の準備を走らせる
   setTimeout(keepFocus, 50);
 });
 
@@ -79,7 +73,7 @@ async function executeManualInput() {
   
   const val = barcodeInput.value.trim();
   
-  // 🎯 【対策】クリアのタイミングをわずかに遅らせて、読み取り時のブラウザ負荷を逃がす
+  // 入力クリアのタイミングをわずかに遅らせて、読み取り時のブラウザ負荷を逃がす
   setTimeout(() => {
     barcodeInput.value = "";
   }, 50);
@@ -155,7 +149,7 @@ async function handleGS1Check(raw) {
 
   // 判定と音の鳴らし分け
   
-  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ 警告音）
+  // A. 本日より前 ＝ 【期限切れ！】（赤色 ＋ ⚠️警告音）
   if (expiryDate < today) {
     playAlertSound();
     const card = document.createElement("div");
@@ -167,7 +161,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ 警告音）
+  // B. 本日〜基準日の間 ＝ 【期限切迫！】（黄色 ＋ ⚠️警告音）
   else if (expiryDate >= today && expiryDate <= baseDate) {
     playAlertSound();
     const card = document.createElement("div");
@@ -179,7 +173,7 @@ async function handleGS1Check(raw) {
     `;
     resultList.prepend(card);
   }
-  // C. 基準日より先 ＝ 【OK】（緑色 ＋ OK音）
+  // C. 基準日より先 ＝ 【OK】（緑色 ＋ ✅OK音）
   else {
     playBeep(); 
     const card = document.createElement("div");
